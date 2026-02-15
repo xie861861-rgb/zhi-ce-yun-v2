@@ -1,0 +1,107 @@
+// Prisma Schema for ZhiCeYun V2
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies     Company[]
+  auditResults  AuditResult[]
+  reports       Report[]
+}
+
+model Company {
+  id               String   @id @default(uuid())
+  name             String
+  taxNumber        String   @unique
+  legalPerson      String
+  registeredCapital Float
+  establishedDate  DateTime
+  address          String
+  status           String   @default("pending")
+  verifiedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auditResults AuditResult[]
+}
+
+model AuditResult {
+  id                String   @id @default(uuid())
+  status            String   @default("processing")
+  score             Int?
+  creditLevel       String?
+  loanLimit         Float?
+  riskLevel         String?
+  taxCompliance     Int?
+  financialHealth   Int?
+  businessStability Int?
+  industryProspects Int?
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+}
+
+model Asset {
+  id             String   @id @default(uuid())
+  title          String
+  type           String
+  area           String
+  address        String
+  price          Float
+  marketPrice    Float
+  discount       Float
+  financingSpace Float
+  mortgageRate   Float
+  disposalCost   Float
+  source         String
+  status         String   @default("upcoming")
+  endTime        DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  type      String
+  title     String
+  status    String   @default("processing")
+  data      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId   String?
+}
+
+model WorkOrder {
+  id        String   @id @default(uuid())
+  type      String
+  status    String   @default("pending")
+  title     String
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
