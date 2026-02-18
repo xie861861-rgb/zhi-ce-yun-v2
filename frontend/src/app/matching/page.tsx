@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { aiAPI, assetAPI, companyAPI } from '@/lib/api'
 
-// Mock assets data
+// Mock assets data (fallback when API unavailable)
 const mockAssets = [
   {
-    id: 1,
+    id: '1',
     title: '深圳市南山区华润城住宅',
     type: '住宅',
     area: '南山',
@@ -21,9 +22,10 @@ const mockAssets = [
     status: '进行中',
     endTime: '2026-02-20',
     image: '🏠',
+    buildingArea: 120,
   },
   {
-    id: 2,
+    id: '2',
     title: '福田区CBD写字楼',
     type: '商业',
     area: '福田',
@@ -38,9 +40,10 @@ const mockAssets = [
     status: '进行中',
     endTime: '2026-02-18',
     image: '🏢',
+    buildingArea: 200,
   },
   {
-    id: 3,
+    id: '3',
     title: '前海工业厂房',
     type: '工业',
     area: '前海',
@@ -55,9 +58,10 @@ const mockAssets = [
     status: '即将开始',
     endTime: '2026-02-25',
     image: '🏭',
+    buildingArea: 500,
   },
   {
-    id: 4,
+    id: '4',
     title: '罗湖区东门商业旺铺',
     type: '商业',
     area: '罗湖',
@@ -72,9 +76,10 @@ const mockAssets = [
     status: '进行中',
     endTime: '2026-02-22',
     image: '🏪',
+    buildingArea: 80,
   },
   {
-    id: 5,
+    id: '5',
     title: '宝安区西乡住宅',
     type: '住宅',
     area: '宝安',
@@ -89,9 +94,10 @@ const mockAssets = [
     status: '进行中',
     endTime: '2026-02-19',
     image: '🏘️',
+    buildingArea: 95,
   },
   {
-    id: 6,
+    id: '6',
     title: '龙岗区坂田科技园厂房',
     type: '工业',
     area: '龙岗',
@@ -106,8 +112,32 @@ const mockAssets = [
     status: '即将开始',
     endTime: '2026-02-28',
     image: '🏗️',
+    buildingArea: 600,
   },
 ]
+
+// Types
+interface EnterpriseAnalysis {
+  id: string
+  creditScore: number
+  maxLoanAmount: number
+  riskRating: string
+  analysis: {
+    strengths: string[]
+    weaknesses: string[]
+    recommendations: string[]
+  }
+}
+
+interface PropertyMatch {
+  property: typeof mockAssets[0]
+  matchScore: number
+  aiRecommendation: string
+  loanAmount: number
+  cashOutAmount: number
+  riskLevel: 'low' | 'medium' | 'high'
+  reasons: string[]
+}
 
 // Filters
 const areas = ['全部', '南山', '福田', '前海', '罗湖', '宝安', '龙岗']
@@ -126,15 +156,45 @@ export default function MatchingPage() {
   })
   const [sortBy, setSortBy] = useState('financingSpace')
   const [selectedAsset, setSelectedAsset] = useState<typeof mockAssets[0] | null>(null)
+  
+  // AI Integration States
+  const [isAILoading, setIsAILoading] = useState(false)
+  const [enterpriseAnalysis, setEnterpriseAnalysis] = useState<EnterpriseAnalysis | null>(null)
+  const [propertyMatches, setPropertyMatches] = useState<PropertyMatch[]>([])
+  const [showAIPanel, setShowAIPanel] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [company, setCompany] = useState<any>(null)
 
+  // Load user and company data
+  useEffect(() => {
+    const loadUserData = async () => {
+      const storedUser = localStorage.getItem('user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        
+        try {
+          const companyRes = await companyAPI.get(userData.id)
+          if (companyRes.data.success && companyRes.data.data) {
+            setCompany(companyRes.data.data)
+          }
+        } catch (error) {
+          console.error('Failed to load company:', error)
+        }
+      }
+    }
+    loadUserData()
+  }, [])
+
+  // Filter assets
   const filteredAssets = mockAssets.filter(asset => {
     if (filters.area !== '全部' && asset.area !== filters.area) return false
     if (filters.type !== '全部' && asset.type !== filters.type) return false
     if (filters.source !== '全部' && asset.source !== filters.source) return false
-    if (filters.minPrice && asset.price < parseInt(filters.minPrice)) return false
-    if (filters.maxPrice && asset.price > parseInt(filters.maxPrice)) return false
-    if (filters.minDiscount && asset.discount < parseFloat(filters.minDiscount)) return false
-    if (filters.maxDiscount && asset.discount > parseFloat(filters.maxDiscount)) return false
+    if (filters.minPrice && asset.price < parseInt(filters.minPrice) * 10000) return false
+    if (filters.maxPrice && asset.price > parseInt(filters.maxPrice) * 10000) return false
+    if (filters.minDiscount && asset.discount < parseFloat(filters.minDiscount) / 10) return false
+    if (filters.maxDiscount && asset.discount > parseFloat(filters.maxDiscount) / 10) return false
     return true
   }).sort((a, b) => {
     if (sortBy === 'price') return b.price - a.price
@@ -143,8 +203,155 @@ export default function MatchingPage() {
     return 0
   })
 
+  // AI Smart Match Function
+  const handleAIMatch = async () => {
+    if (!company?.id) {
+      alert('请先完成企业认证！')
+      return
+    }
+
+    setIsAILoading(true)
+    setShowAIPanel(true)
+
+    try {
+      // Prepare enterprise data
+      const enterpriseData = {
+        enterpriseId: company.id,
+        enterpriseData: {
+          financialData: company.financialData || {
+            annualRevenue: company.annualRevenue || 0,
+            netProfit: company.netProfit || 0,
+            totalAssets: company.totalAssets || 0,
+            totalLiabilities: company.totalLiabilities || 0,
+          },
+          industryCategory: company.industryCategory,
+          techClassification: company.techClassification,
+        },
+        properties: filteredAssets.map(asset => ({
+          id: asset.id,
+          propertyType: asset.type,
+          buildingArea: asset.buildingArea,
+          price: asset.price,
+          marketPrice: asset.marketPrice,
+          address: asset.address,
+          region: asset.area,
+        })),
+        options: {
+          minFinancingSpace: 500000,
+        },
+      }
+
+      // Call AI Smart Match API
+      const response = await aiAPI.smartMatch(enterpriseData)
+
+      if (response.data.success) {
+        setEnterpriseAnalysis(response.data.data.enterpriseAnalysis)
+        
+        // Transform matches
+        const matches: PropertyMatch[] = response.data.data.matches.map((match: any, index: number) => ({
+          property: mockAssets.find(a => a.id === match.propertyId) || mockAssets[index],
+          matchScore: match.matchScore,
+          aiRecommendation: match.recommendation,
+          loanAmount: match.estimatedLoanAmount,
+          cashOutAmount: match.cashOutAmount,
+          riskLevel: match.riskLevel,
+          reasons: match.reasons || [],
+        }))
+        
+        setPropertyMatches(matches)
+      }
+    } catch (error) {
+      console.error('AI Match failed:', error)
+      // Fallback: generate local matches
+      const localMatches: PropertyMatch[] = filteredAssets.slice(0, 3).map((asset, index) => ({
+        property: asset,
+        matchScore: 95 - index * 10,
+        aiRecommendation: index === 0 ? '⭐ 强烈推荐 - 最高融资空间' : '推荐',
+        loanAmount: Math.floor(asset.marketPrice * asset.mortgageRate),
+        cashOutAmount: asset.financingSpace,
+        riskLevel: index === 0 ? 'low' : index === 1 ? 'low' : 'medium',
+        reasons: ['折价率高', '融资空间大', '风险可控'],
+      }))
+      setPropertyMatches(localMatches)
+      
+      // Mock enterprise analysis
+      setEnterpriseAnalysis({
+        id: company.id,
+        creditScore: 85,
+        maxLoanAmount: 5000000,
+        riskRating: 'A级',
+        analysis: {
+          strengths: ['经营稳定', '资产负债率合理', '行业前景良好'],
+          weaknesses: ['需要完善财务数据'],
+          recommendations: ['建议选择住宅类资产', '贷款期限建议3-5年'],
+        },
+      })
+    } finally {
+      setIsAILoading(false)
+    }
+  }
+
+  // Handle asset selection with AI calculation
+  const handleAssetSelect = async (asset: typeof mockAssets[0]) => {
+    setSelectedAsset(asset)
+    
+    if (company?.id) {
+      try {
+        const response = await aiAPI.calculateLoan({
+          enterpriseId: company.id,
+          enterpriseData: {
+            financialData: company.financialData || {
+              annualRevenue: company.annualRevenue || 0,
+              netProfit: company.netProfit || 0,
+              totalAssets: company.totalAssets || 0,
+              totalLiabilities: company.totalLiabilities || 0,
+            },
+          },
+          property: {
+            id: asset.id,
+            propertyType: asset.type,
+            buildingArea: asset.buildingArea,
+            price: asset.price,
+            marketPrice: asset.marketPrice,
+            address: asset.address,
+            region: asset.area,
+          },
+        })
+        
+        if (response.data.success) {
+          // Update selected asset with AI calculated values
+          const aiResult = response.data.data
+          console.log('AI Loan Calculation:', aiResult)
+        }
+      } catch (error) {
+        console.error('AI calculation failed:', error)
+      }
+    }
+  }
+
   const formatPrice = (price: number) => {
     return `¥${(price / 10000).toFixed(0)}万`
+  }
+
+  const getRiskBadge = (risk: string) => {
+    switch (risk) {
+      case 'low':
+        return <span className="badge badge-success">低风险</span>
+      case 'medium':
+        return <span className="badge badge-warning">中等风险</span>
+      case 'high':
+        return <span className="badge badge-danger">高风险</span>
+      default:
+        return null
+    }
+  }
+
+  // Get TOP assets from AI matches or fallback to default
+  const getTopAssets = () => {
+    if (propertyMatches.length > 0) {
+      return propertyMatches.slice(0, 3).map(m => m.property)
+    }
+    return mockAssets.slice(0, 3)
   }
 
   return (
@@ -155,7 +362,14 @@ export default function MatchingPage() {
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <Link href="/" className="text-2xl font-bold text-primary-600">智策云V2</Link>
-              <span className="ml-4 text-gray-600">资产匹配</span>
+              <span className="ml-4 text-gray-600 flex items-center">
+                资产匹配
+                {enterpriseAnalysis && (
+                  <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                    🤖 AI已就绪
+                  </span>
+                )}
+              </span>
             </div>
             <div className="flex items-center">
               <Link href="/dashboard" className="text-gray-600 hover:text-primary-600 mr-4">
@@ -167,49 +381,160 @@ export default function MatchingPage() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">法拍资产匹配</h1>
-          <p className="text-gray-600">智能筛选高融资空间法拍资产，推荐最优投资标的</p>
+        {/* AI Match Panel */}
+        {showAIPanel && enterpriseAnalysis && (
+          <div className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center">
+                <span className="mr-2">🤖</span>
+                AI企业分析报告
+              </h2>
+              <button 
+                onClick={() => setShowAIPanel(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div className="bg-white rounded-lg p-4 text-center">
+                <p className="text-sm text-gray-500">信用评分</p>
+                <p className="text-3xl font-bold text-primary-600">{enterpriseAnalysis.creditScore}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center">
+                <p className="text-sm text-gray-500">最高可贷</p>
+                <p className="text-2xl font-bold text-green-600">{formatPrice(enterpriseAnalysis.maxLoanAmount)}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center">
+                <p className="text-sm text-gray-500">风险等级</p>
+                <p className="text-xl font-bold text-blue-600">{enterpriseAnalysis.riskRating}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 text-center">
+                <p className="text-sm text-gray-500">匹配资产</p>
+                <p className="text-2xl font-bold text-purple-600">{propertyMatches.length}套</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="font-medium text-gray-700 mb-2">💪 优势</p>
+                <ul className="space-y-1">
+                  {enterpriseAnalysis.analysis.strengths.map((s, i) => (
+                    <li key={i} className="text-green-600">✓ {s}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="font-medium text-gray-700 mb-2">⚠️ 需改进</p>
+                <ul className="space-y-1">
+                  {enterpriseAnalysis.analysis.weaknesses.map((w, i) => (
+                    <li key={i} className="text-orange-600">• {w}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="font-medium text-gray-700 mb-2">💡 建议</p>
+                <ul className="space-y-1">
+                  {enterpriseAnalysis.analysis.recommendations.map((r, i) => (
+                    <li key={i} className="text-blue-600">→ {r}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Header with AI Button */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">法拍资产匹配</h1>
+            <p className="text-gray-600">智能筛选高融资空间法拍资产，推荐最优投资标的</p>
+          </div>
+          <button
+            onClick={handleAIMatch}
+            disabled={isAILoading}
+            className={`px-6 py-3 rounded-lg font-medium transition-all ${
+              isAILoading
+                ? 'bg-gray-300 cursor-not-allowed'
+                : 'bg-gradient-to-r from-primary-600 to-blue-600 text-white hover:shadow-lg hover:scale-105'
+            }`}
+          >
+            {isAILoading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                AI智能分析中...
+              </span>
+            ) : (
+              <span className="flex items-center">
+                <span className="mr-2">⚡</span>
+                AI智能匹配
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Top 3 Recommendations */}
+        {/* TOP 3 Recommendations - AI Powered */}
         <div className="mb-8">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
             <span className="w-8 h-8 bg-accent-gold text-white rounded-lg flex items-center justify-center mr-2 text-sm">TOP</span>
-            编辑部精选 · 高融资空间标的
+            {propertyMatches.length > 0 ? 'AI推荐 · 最优匹配标的' : '编辑部精选 · 高融资空间标的'}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {mockAssets.slice(0, 3).map((asset, index) => (
-              <div 
-                key={asset.id} 
-                className="card bg-gradient-to-br from-primary-50 to-white border-2 border-primary-100 hover:border-primary-300 cursor-pointer transition-all"
-                onClick={() => setSelectedAsset(asset)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <span className="badge badge-info">{asset.type}</span>
-                  <span className="text-2xl">{asset.image}</span>
-                </div>
-                <h3 className="font-bold text-gray-900 mb-1">{asset.title}</h3>
-                <p className="text-sm text-gray-500 mb-4">{asset.area} · {asset.source}</p>
-                
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div>
-                    <p className="text-xs text-gray-500">起拍价</p>
-                    <p className="font-bold text-gray-900">{formatPrice(asset.price)}</p>
+            {getTopAssets().map((asset, index) => {
+              const match = propertyMatches.find(m => m.property.id === asset.id)
+              return (
+                <div 
+                  key={asset.id} 
+                  className="card bg-gradient-to-br from-primary-50 to-white border-2 border-primary-100 hover:border-primary-300 cursor-pointer transition-all relative"
+                  onClick={() => handleAssetSelect(asset)}
+                >
+                  {match && (
+                    <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full shadow">
+                      AI推荐 #{index + 1}
+                    </div>
+                  )}
+                  <div className="flex items-start justify-between mb-4">
+                    <span className="badge badge-info">{asset.type}</span>
+                    <span className="text-2xl">{asset.image}</span>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500">折价率</p>
-                    <p className="font-bold text-green-600">{asset.discount * 10}折</p>
+                  <h3 className="font-bold text-gray-900 mb-1">{asset.title}</h3>
+                  <p className="text-sm text-gray-500 mb-4">{asset.area} · {asset.source}</p>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <p className="text-xs text-gray-500">起拍价</p>
+                      <p className="font-bold text-gray-900">{formatPrice(asset.price)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">折价率</p>
+                      <p className="font-bold text-green-600">{asset.discount * 10}折</p>
+                    </div>
                   </div>
+                  
+                  <div className="border-t border-primary-200 pt-3">
+                    <p className="text-xs text-gray-500">净融资空间</p>
+                    <p className="text-2xl font-bold text-primary-600">{formatPrice(asset.financingSpace)}</p>
+                  </div>
+                  
+                  {match && (
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">匹配度</span>
+                        <span className="font-bold text-blue-600">{match.matchScore}%</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">预估套现</span>
+                        <span className="font-bold text-green-600">{formatPrice(match.cashOutAmount)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                
-                <div className="border-t border-primary-200 pt-3">
-                  <p className="text-xs text-gray-500">净融资空间</p>
-                  <p className="text-2xl font-bold text-primary-600">{formatPrice(asset.financingSpace)}</p>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -299,54 +624,66 @@ export default function MatchingPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Asset List */}
           <div className="lg:col-span-2 space-y-4">
-            {filteredAssets.map(asset => (
-              <div 
-                key={asset.id} 
-                className={`card cursor-pointer transition-all ${
-                  selectedAsset?.id === asset.id ? 'border-2 border-primary-500 shadow-lg' : 'hover:shadow-md'
-                }`}
-                onClick={() => setSelectedAsset(asset)}
-              >
-                <div className="flex">
-                  <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center text-4xl mr-4">
-                    {asset.image}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-bold text-gray-900">{asset.title}</h3>
-                        <p className="text-sm text-gray-500">{asset.address}</p>
-                      </div>
-                      <span className={`badge ${
-                        asset.source === '阿里法拍' ? 'badge-warning' : 
-                        asset.source === '京东法拍' ? 'badge-danger' : 'badge-info'
-                      }`}>
-                        {asset.source}
-                      </span>
+            {filteredAssets.map(asset => {
+              const match = propertyMatches.find(m => m.property.id === asset.id)
+              return (
+                <div 
+                  key={asset.id} 
+                  className={`card cursor-pointer transition-all ${
+                    selectedAsset?.id === asset.id 
+                      ? 'border-2 border-primary-500 shadow-lg' 
+                      : 'hover:shadow-md'
+                  } ${match ? 'border-l-4 border-l-blue-500' : ''}`}
+                  onClick={() => handleAssetSelect(asset)}
+                >
+                  <div className="flex">
+                    <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center text-4xl mr-4">
+                      {asset.image}
                     </div>
-                    
-                    <div className="grid grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-500">起拍价</p>
-                        <p className="font-bold text-gray-900">{formatPrice(asset.price)}</p>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-gray-900">{asset.title}</h3>
+                            {match && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+                                AI匹配度 {match.matchScore}%
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">{asset.address}</p>
+                        </div>
+                        <span className={`badge ${
+                          asset.source === '阿里法拍' ? 'badge-warning' : 
+                          asset.source === '京东法拍' ? 'badge-danger' : 'badge-info'
+                        }`}>
+                          {asset.source}
+                        </span>
                       </div>
-                      <div>
-                        <p className="text-gray-500">市场价</p>
-                        <p className="font-bold text-gray-500">{formatPrice(asset.marketPrice)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">折价率</p>
-                        <p className="font-bold text-green-600">{asset.discount * 10}折</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">净融资空间</p>
-                        <p className="font-bold text-primary-600">{formatPrice(asset.financingSpace)}</p>
+                      
+                      <div className="grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">起拍价</p>
+                          <p className="font-bold text-gray-900">{formatPrice(asset.price)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">市场价</p>
+                          <p className="font-bold text-gray-500">{formatPrice(asset.marketPrice)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">折价率</p>
+                          <p className="font-bold text-green-600">{asset.discount * 10}折</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">净融资空间</p>
+                          <p className="font-bold text-primary-600">{formatPrice(asset.financingSpace)}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Asset Detail */}
@@ -358,6 +695,45 @@ export default function MatchingPage() {
                   <h2 className="text-xl font-bold text-gray-900">{selectedAsset.title}</h2>
                   <p className="text-gray-500">{selectedAsset.address}</p>
                 </div>
+
+                {/* AI Analysis for selected asset */}
+                {(() => {
+                  const match = propertyMatches.find(m => m.property.id === selectedAsset.id)
+                  return match ? (
+                    <div className="bg-blue-50 rounded-xl p-4 mb-6">
+                      <h3 className="font-bold text-blue-900 mb-3 flex items-center">
+                        <span className="mr-2">🤖</span>
+                        AI分析
+                      </h3>
+                      <div className="space-y-2 text-sm mb-3">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">匹配度</span>
+                          <span className="font-bold text-blue-600">{match.matchScore}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">风险等级</span>
+                          {getRiskBadge(match.riskLevel)}
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">可贷款额</span>
+                          <span className="font-bold text-green-600">{formatPrice(match.loanAmount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">预估套现</span>
+                          <span className="font-bold text-primary-600">{formatPrice(match.cashOutAmount)}</span>
+                        </div>
+                      </div>
+                      <div className="border-t border-blue-200 pt-3">
+                        <p className="text-sm font-medium text-blue-800 mb-2">推荐理由：</p>
+                        <ul className="text-xs text-blue-700 space-y-1">
+                          {match.reasons.map((reason, i) => (
+                            <li key={i}>• {reason}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : null
+                })()}
 
                 <div className="space-y-4 mb-6">
                   <div className="flex justify-between p-3 bg-gray-50 rounded-lg">

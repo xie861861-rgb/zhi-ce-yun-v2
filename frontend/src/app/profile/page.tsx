@@ -3,10 +3,34 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import axios from 'axios'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+
+interface StaffInfo {
+  id: string
+  name: string
+  email: string
+  phone?: string
+  position: string
+  department?: string
+}
+
+interface FollowUp {
+  id: string
+  type: string
+  content: string
+  nextAction?: string
+  nextDate?: string
+  createdAt: string
+}
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
   const [activeTab, setActiveTab] = useState('profile')
+  const [staffInfo, setStaffInfo] = useState<StaffInfo | null>(null)
+  const [followUps, setFollowUps] = useState<FollowUp[]>([])
+  const [loadingStaff, setLoadingStaff] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -15,8 +39,34 @@ export default function ProfilePage() {
       router.push('/login')
       return
     }
-    setUser(JSON.parse(storedUser))
+    const parsedUser = JSON.parse(storedUser)
+    setUser(parsedUser)
+    if (parsedUser.id) {
+      fetchStaffInfo(parsedUser.id)
+    }
   }, [router])
+
+  const fetchStaffInfo = async (userId: string) => {
+    setLoadingStaff(true)
+    try {
+      // Find staff that has this user as a customer
+      const res = await axios.get(`${API_URL}/api/staff`)
+      const allStaff = res.data.data
+      
+      for (const staff of allStaff) {
+        const customer = staff.customers?.find((c: any) => c.customerId === userId)
+        if (customer) {
+          setStaffInfo(staff)
+          setFollowUps(staff.followUps?.filter((f: any) => f.customerId === userId) || [])
+          break
+        }
+      }
+    } catch (error) {
+      console.error('获取员工信息失败:', error)
+    } finally {
+      setLoadingStaff(false)
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('user')
@@ -74,6 +124,7 @@ export default function ProfilePage() {
                   { key: 'security', label: '账号安全', icon: '🔒' },
                   { key: 'notifications', label: '消息通知', icon: '🔔' },
                   { key: 'billing', label: '账单记录', icon: '💳' },
+                  { key: 'service', label: '专属服务', icon: '👨‍💼' },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -326,6 +377,93 @@ export default function ProfilePage() {
                   <h3 className="text-lg font-medium text-gray-900 mb-2">暂无账单记录</h3>
                   <p className="text-gray-500">您还没有任何账单记录</p>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'service' && (
+              <div className="card">
+                <h2 className="text-xl font-bold text-gray-900 mb-6">专属服务</h2>
+                
+                {loadingStaff ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p className="text-gray-500 mt-2">加载中...</p>
+                  </div>
+                ) : staffInfo ? (
+                  <div className="space-y-6">
+                    {/* 专属顾问信息 */}
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">🎯 您的专属顾问</h3>
+                      <div className="flex items-center">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
+                          {staffInfo.name.charAt(0)}
+                        </div>
+                        <div className="ml-4">
+                          <div className="font-bold text-xl text-gray-900">{staffInfo.name}</div>
+                          <div className="text-gray-600">{staffInfo.position} {staffInfo.department ? `· ${staffInfo.department}` : ''}</div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            📧 {staffInfo.email} {staffInfo.phone ? ` | 📞 ${staffInfo.phone}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 服务记录 */}
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">📋 服务记录</h3>
+                      {followUps.length > 0 ? (
+                        <div className="space-y-4">
+                          {followUps.map((followUp) => (
+                            <div key={followUp.id} className="border rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  followUp.type === 'call' ? 'bg-blue-100 text-blue-700' :
+                                  followUp.type === 'visit' ? 'bg-green-100 text-green-700' :
+                                  followUp.type === 'meeting' ? 'bg-purple-100 text-purple-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {followUp.type === 'call' ? '📞 电话' :
+                                   followUp.type === 'visit' ? '🏠 拜访' :
+                                   followUp.type === 'meeting' ? '🤝 会议' : '📝 备注'}
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                  {new Date(followUp.createdAt).toLocaleString('zh-CN')}
+                                </span>
+                              </div>
+                              <p className="text-gray-700">{followUp.content}</p>
+                              {followUp.nextAction && (
+                                <div className="mt-3 pt-3 border-t text-sm">
+                                  <span className="text-orange-600">📌 下次行动：</span>
+                                  <span className="text-gray-700">{followUp.nextAction}</span>
+                                  {followUp.nextDate && (
+                                    <span className="text-gray-500 ml-2">
+                                      (计划日期: {new Date(followUp.nextDate).toLocaleDateString('zh-CN')})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          <p>暂无服务记录</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">暂未分配专属顾问</h3>
+                    <p className="text-gray-500">系统将为您自动分配专属服务顾问，请耐心等待</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

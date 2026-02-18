@@ -12,11 +12,13 @@ import assetRoutes from './routes/asset'
 import reportRoutes from './routes/report'
 import workOrderRoutes from './routes/workOrder'
 import dataSourcesRoutes from './routes/dataSources'
+import aiRoutes from './routes/ai'  // AI智能匹配路由
+import staffRoutes from './routes/staff'  // 员工管理路由
 
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 4000
 
 // Middleware
 app.use(helmet())
@@ -33,6 +35,8 @@ app.use('/api/asset', assetRoutes)
 app.use('/api/report', reportRoutes)
 app.use('/api/work-order', workOrderRoutes)
 app.use('/api/data-sources', dataSourcesRoutes)
+app.use('/api/ai', aiRoutes)  // AI智能匹配路由
+app.use('/api/staff', staffRoutes)  // 员工管理路由
 
 // Health check
 app.get('/api/health', (req, res) => {

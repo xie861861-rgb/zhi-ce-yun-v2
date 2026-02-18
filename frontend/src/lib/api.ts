@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -158,6 +158,91 @@ export const workOrderAPI = {
     api.post('/work-order', data),
   
   update: (id: string, data: any) => api.put(`/work-order/${id}`, data),
+}
+
+// AI APIs - 智策云V2 智能匹配核心
+export const aiAPI = {
+  // 企业分析 - 分析企业财务状况，确定可贷款额度
+  analyzeEnterprise: (data: {
+    enterpriseId: string
+    financialData?: {
+      annualRevenue: number
+      netProfit: number
+      totalAssets: number
+      totalLiabilities: number
+    }
+    industryCategory?: string
+    techClassification?: string
+  }) => api.post('/ai/analyze-enterprise', data),
+  
+  // 资产评估 - 评估资产市场价值、折扣率、投资评分
+  valuateProperty: (data: {
+    id: string
+    propertyType: string
+    buildingArea: number
+    address?: string
+    region?: string
+  }) => api.post('/ai/valuate-property', data),
+  
+  // 智能匹配 - 核心功能！为企业匹配最优资产
+  smartMatch: (data: {
+    enterpriseId: string
+    enterpriseData?: {
+      financialData?: {
+        annualRevenue: number
+        netProfit: number
+        totalAssets: number
+        totalLiabilities: number
+      }
+      industryCategory?: string
+      techClassification?: string
+    }
+    properties: Array<{
+      id: string
+      propertyType: string
+      buildingArea: number
+      price: number
+      marketPrice: number
+      address?: string
+      region?: string
+    }>
+    options?: {
+      minFinancingSpace?: number
+      maxPrice?: number
+      propertyTypes?: string[]
+    }
+  }) => api.post('/ai/smart-match', data),
+  
+  // 低买高贷计算 - 计算单个资产的套现方案
+  calculateLoan: (data: {
+    enterpriseId: string
+    enterpriseData?: {
+      financialData?: {
+        annualRevenue: number
+        netProfit: number
+        totalAssets: number
+        totalLiabilities: number
+      }
+      industryCategory?: string
+      techClassification?: string
+    }
+    property: {
+      id: string
+      propertyType: string
+      buildingArea: number
+      price: number
+      marketPrice: number
+      address?: string
+      region?: string
+    }
+  }) => api.post('/ai/calculate-loan', data),
+  
+  // 获取银行产品列表
+  getBankProducts: (params?: { propertyType?: string; loanAmount?: number }) =>
+    api.get('/ai/bank-products', { params }),
+  
+  // 获取匹配结果
+  getMatchResult: (matchId: string) => api.get(`/ai/match-result/${matchId}`),
 }
 
 export default api

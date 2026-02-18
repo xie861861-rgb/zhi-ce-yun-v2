@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 
 // Mock steps
 const steps = [
@@ -12,26 +11,41 @@ const steps = [
   { id: 4, name: '报告生成', icon: '📊' },
 ]
 
-// Mock OCR result
-const mockOCRResult = {
-  companyName: '深圳市智策云科技有限公司',
-  taxNumber: '91440300MA5FXXXXX',
-  annualTax: 1250000,
-  revenue: 85000000,
-  profit: 12500000,
-}
-
-// Mock audit result
+// Mock audit result - 更详细的AI分析
 const mockAuditResult = {
   score: 85,
   level: 'A级',
   loanLimit: 5000000,
   riskLevel: '低风险',
+  // 基础分析
   creditProfile: {
     taxCompliance: 95,
     financialHealth: 80,
     businessStability: 85,
     industryProspects: 90,
+  },
+  // 水母报告分析
+  jimuReport: {
+    score: 88,
+    analysis: '企业经营状况良好，营收稳定增长',
+    risks: ['行业竞争加剧', '应收账款周转略慢'],
+    suggestions: ['建议优化现金流管理', '可考虑扩大融资规模'],
+  },
+  // 企业征信分析
+  enterpriseCredit: {
+    score: 82,
+    debtRatio: 45,
+    creditInquiries: 12,
+    overdueRecords: 0,
+    analysis: '企业信用记录良好，无逾期记录',
+  },
+  // 个人征信分析
+  personalCredit: {
+    score: 90,
+    creditAge: 36,
+    creditLimit: 500000,
+    overdueRecords: 0,
+    analysis: '个人信用优秀，负债率低',
   },
 }
 
@@ -47,37 +61,38 @@ export default function AuditPage() {
     registeredCapital: '',
     establishedDate: '',
     address: '',
+    // 水母报告URL
+    jimuReportUrl: '',
   })
   const [files, setFiles] = useState({
-    taxProof: null as File | null,
-    financialReport: null as File | null,
+    // 企业征信
+    enterpriseCredit: null as File | null,
+    // 个人征信
+    personalCredit: null as File | null,
   })
   const [auditResult, setAuditResult] = useState<typeof mockAuditResult | null>(null)
-  const router = useRouter()
 
-  const handleFileUpload = async (type: 'taxProof' | 'financialReport', file: File) => {
+  // 处理文件上传
+  const handleFileUpload = async (type: 'enterpriseCredit' | 'personalCredit', file: File) => {
     setUploading(true)
-    
-    // Simulate file upload
+    // 模拟文件上传
     await new Promise(resolve => setTimeout(resolve, 1500))
-    
     setFiles(prev => ({ ...prev, [type]: file }))
     setUploading(false)
   }
 
+  // 提交审核
   const handleSubmit = async () => {
     setLoading(true)
-    
-    // Simulate AI audit
+    // 模拟AI审核（包含三件套分析）
     await new Promise(resolve => setTimeout(resolve, 3000))
-    
     setAuditResult(mockAuditResult)
     setLoading(false)
     setCurrentStep(4)
   }
 
+  // 下一步
   const handleNext = () => {
-    // 验证必填字段
     if (currentStep === 1) {
       if (!formData.companyName.trim()) {
         alert('请输入企业名称')
@@ -95,12 +110,28 @@ export default function AuditPage() {
         alert('请输入法人手机号')
         return
       }
-      // 简单验证手机号格式
       if (!/^1[3-9]\d{9}$/.test(formData.legalPersonPhone.trim())) {
         alert('请输入正确的手机号格式')
         return
       }
     }
+    
+    // 验证第二步：上传资料
+    if (currentStep === 2) {
+      if (!formData.jimuReportUrl.trim()) {
+        alert('请输入水母报告链接')
+        return
+      }
+      if (!files.enterpriseCredit) {
+        alert('请上传企业征信报告')
+        return
+      }
+      if (!files.personalCredit) {
+        alert('请上传个人征信报告')
+        return
+      }
+    }
+    
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1)
     }
@@ -114,7 +145,6 @@ export default function AuditPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -139,215 +169,148 @@ export default function AuditPage() {
               <div key={step.id} className="flex items-center">
                 <div className={`flex flex-col items-center ${index < steps.length - 1 ? 'w-24' : ''}`}>
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${
-                    currentStep >= step.id 
-                      ? 'bg-primary-600 text-white' 
-                      : 'bg-gray-200 text-gray-500'
+                    currentStep >= step.id ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
                   }`}>
-                    {currentStep > step.id ? (
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      step.icon
-                    )}
+                    {currentStep > step.id ? '✓' : step.icon}
                   </div>
                   <span className={`mt-2 text-sm ${currentStep >= step.id ? 'text-primary-600' : 'text-gray-500'}`}>
                     {step.name}
                   </span>
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`flex-1 h-1 mx-2 ${
-                    currentStep > step.id ? 'bg-primary-600' : 'bg-gray-200'
-                  }`} />
+                  <div className={`flex-1 h-1 mx-2 ${currentStep > step.id ? 'bg-primary-600' : 'bg-gray-200'}`} />
                 )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Step Content */}
         <div className="card">
           {/* Step 1: Company Info */}
           {currentStep === 1 && (
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-6">企业基本信息</h2>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    企业名称 *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.companyName}
-                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                    className="input-field"
-                    placeholder="请输入企业名称"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">企业名称 *</label>
+                  <input type="text" value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="input-field" placeholder="请输入企业名称" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    统一社会信用代码 *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.taxNumber}
-                    onChange={(e) => setFormData({...formData, taxNumber: e.target.value})}
-                    className="input-field"
-                    placeholder="请输入统一社会信用代码"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">统一社会信用代码 *</label>
+                  <input type="text" value={formData.taxNumber} onChange={(e) => setFormData({...formData, taxNumber: e.target.value})} className="input-field" placeholder="请输入统一社会信用代码" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    法定代表人 *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.legalPerson}
-                    onChange={(e) => setFormData({...formData, legalPerson: e.target.value})}
-                    className="input-field"
-                    placeholder="请输入法定代表人"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">法定代表人 *</label>
+                  <input type="text" value={formData.legalPerson} onChange={(e) => setFormData({...formData, legalPerson: e.target.value})} className="input-field" placeholder="请输入法定代表人" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    法人手机号 *
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.legalPersonPhone}
-                    onChange={(e) => setFormData({...formData, legalPersonPhone: e.target.value})}
-                    className="input-field"
-                    placeholder="请输入法人手机号"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">法人手机号 *</label>
+                  <input type="tel" value={formData.legalPersonPhone} onChange={(e) => setFormData({...formData, legalPersonPhone: e.target.value})} className="input-field" placeholder="请输入法人手机号" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    注册资本（万元）
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.registeredCapital}
-                    onChange={(e) => setFormData({...formData, registeredCapital: e.target.value})}
-                    className="input-field"
-                    placeholder="请输入注册资本"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">注册资本（万元）</label>
+                  <input type="number" value={formData.registeredCapital} onChange={(e) => setFormData({...formData, registeredCapital: e.target.value})} className="input-field" placeholder="请输入注册资本" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    成立日期
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.establishedDate}
-                    onChange={(e) => setFormData({...formData, establishedDate: e.target.value})}
-                    className="input-field"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">成立日期</label>
+                  <input type="date" value={formData.establishedDate} onChange={(e) => setFormData({...formData, establishedDate: e.target.value})} className="input-field" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    注册地址
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    className="input-field"
-                    placeholder="请输入注册地址"
-                  />
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">注册地址</label>
+                  <input type="text" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="input-field" placeholder="请输入注册地址" />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 2: Upload Files */}
+          {/* Step 2: Upload Files - 三件套 */}
           {currentStep === 2 && (
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-6">上传资质材料</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">上传资质材料</h2>
+              <p className="text-gray-500 mb-6">请上传以下三件套材料，用于AI综合分析</p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Tax Proof */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors">
-                  <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h3 className="font-medium text-gray-900 mb-2">纳税证明</h3>
-                  <p className="text-sm text-gray-500 mb-4">支持 JPG、PNG、PDF 格式</p>
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload('taxProof', e.target.files[0])}
-                    className="hidden"
-                    id="tax-proof"
-                    disabled={uploading}
-                  />
-                  <label htmlFor="tax-proof" className="btn-secondary inline-block cursor-pointer">
-                    {uploading ? '上传中...' : '选择文件'}
-                  </label>
-                  {files.taxProof && (
-                    <p className="mt-4 text-sm text-green-600 flex items-center justify-center">
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      {files.taxProof.name}
-                    </p>
-                  )}
-                </div>
-
-                {/* Financial Report */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors">
-                  <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h3 className="font-medium text-gray-900 mb-2">财务报表摘要</h3>
-                  <p className="text-sm text-gray-500 mb-4">支持 JPG、PNG、PDF 格式</p>
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload('financialReport', e.target.files[0])}
-                    className="hidden"
-                    id="financial-report"
-                    disabled={uploading}
-                  />
-                  <label htmlFor="financial-report" className="btn-secondary inline-block cursor-pointer">
-                    {uploading ? '上传中...' : '选择文件'}
-                  </label>
-                  {files.financialReport && (
-                    <p className="mt-4 text-sm text-green-600 flex items-center justify-center">
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      {files.financialReport.name}
-                    </p>
-                  )}
+              {/* 三件套说明 */}
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-medium text-blue-900 mb-2">📋 三件套说明</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-start">
+                    <span className="text-blue-600 mr-2">🔗</span>
+                    <div><p className="font-medium">水母报告</p><p className="text-blue-700">从第三方复制链接</p></div>
+                  </div>
+                  <div className="flex items-start">
+                    <span className="text-blue-600 mr-2">🏢</span>
+                    <div><p className="font-medium">企业征信</p><p className="text-blue-700">企业信用报告文件</p></div>
+                  </div>
+                  <div className="flex items-start">
+                    <span className="text-blue-600 mr-2">👤</span>
+                    <div><p className="font-medium">个人征信</p><p className="text-blue-700">法人个人信用报告</p></div>
+                  </div>
                 </div>
               </div>
 
-              {/* OCR Preview */}
-              {files.taxProof && (
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-3">OCR 识别结果（模拟）</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. 水母报告 - URL链接 */}
+                <div className="md:col-span-2 border-2 border-dashed border-blue-300 rounded-lg p-6 bg-blue-50/50">
+                  <div className="flex items-center mb-4">
+                    <span className="text-2xl mr-3">🔗</span>
                     <div>
-                      <p className="text-gray-500">企业名称</p>
-                      <p className="font-medium">{mockOCRResult.companyName}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">税号</p>
-                      <p className="font-medium">{mockOCRResult.taxNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">年纳税额</p>
-                      <p className="font-medium">¥{(mockOCRResult.annualTax / 10000).toFixed(0)}万</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">营业收入</p>
-                      <p className="font-medium">¥{(mockOCRResult.revenue / 10000).toFixed(0)}万</p>
+                      <h3 className="font-medium text-gray-900">水母报告链接 *</h3>
+                      <p className="text-sm text-gray-500">请从水母报告官网复制完整链接</p>
                     </div>
                   </div>
+                  <input
+                    type="url"
+                    value={formData.jimuReportUrl}
+                    onChange={(e) => setFormData({...formData, jimuReportUrl: e.target.value})}
+                    className="input-field w-full"
+                    placeholder="https://www.jimu.com/report/xxxxx"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">💡 提示：登录水母报告官网，点击"分享报告"，复制链接地址</p>
                 </div>
-              )}
+
+                {/* 2. 企业征信 */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400">
+                  <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3 className="font-medium text-gray-900 mb-2">企业征信报告 *</h3>
+                  <p className="text-sm text-gray-500 mb-4">支持 JPG、PNG、PDF 格式</p>
+                  <input type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload('enterpriseCredit', e.target.files[0])} className="hidden" id="enterprise-credit" disabled={uploading} />
+                  <label htmlFor="enterprise-credit" className="btn-secondary inline-block cursor-pointer">{uploading ? '上传中...' : '选择文件'}</label>
+                  {files.enterpriseCredit && <p className="mt-4 text-sm text-green-600">✓ {files.enterpriseCredit.name}</p>}
+                </div>
+
+                {/* 3. 个人征信 */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400">
+                  <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <h3 className="font-medium text-gray-900 mb-2">个人征信报告 *</h3>
+                  <p className="text-sm text-gray-500 mb-4">支持 JPG、PNG、PDF 格式</p>
+                  <input type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload('personalCredit', e.target.files[0])} className="hidden" id="personal-credit" disabled={uploading} />
+                  <label htmlFor="personal-credit" className="btn-secondary inline-block cursor-pointer">{uploading ? '上传中...' : '选择文件'}</label>
+                  {files.personalCredit && <p className="mt-4 text-sm text-green-600">✓ {files.personalCredit.name}</p>}
+                </div>
+              </div>
+
+              {/* 材料状态 */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-3">📝 材料提交状态</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">🔗 水母报告链接</span>
+                    <span className={formData.jimuReportUrl ? 'text-green-600' : 'text-red-500'}>{formData.jimuReportUrl ? '✓ 已提交' : '✗ 未提交'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">🏢 企业征信报告</span>
+                    <span className={files.enterpriseCredit ? 'text-green-600' : 'text-red-500'}>{files.enterpriseCredit ? '✓ 已上传' : '✗ 未上传'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">👤 个人征信报告</span>
+                    <span className={files.personalCredit ? 'text-green-600' : 'text-red-500'}>{files.personalCredit ? '✓ 已上传' : '✗ 未上传'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -358,46 +321,15 @@ export default function AuditPage() {
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">AI 资质审核中</h2>
-              <p className="text-gray-600 mb-4">正在进行税务API交叉核验...</p>
+              <p className="text-gray-600 mb-4">正在分析三件套材料...</p>
               <p className="text-sm text-gray-500">预计剩余时间：约 2 分钟</p>
               
-              <div className="mt-8 max-w-md mx-auto">
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <span className="text-gray-600">企业信息验证</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <span className="text-gray-600">纳税记录查询</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center mr-3">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
-                    </div>
-                    <span className="text-gray-600">财务健康分析</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                      <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                    </div>
-                    <span className="text-gray-400">风险评估计算</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                      <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                    </div>
-                    <span className="text-gray-400">生成审核报告</span>
-                  </div>
-                </div>
+              <div className="mt-8 max-w-md mx-auto space-y-4">
+                <div className="flex items-center"><div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">✓</div><span className="text-gray-600">企业信息验证</span></div>
+                <div className="flex items-center"><div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">✓</div><span className="text-gray-600">水母报告分析</span></div>
+                <div className="flex items-center"><div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">✓</div><span className="text-gray-600">企业征信分析</span></div>
+                <div className="flex items-center"><div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center mr-3"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div></div><span className="text-gray-600">个人征信分析</span></div>
+                <div className="flex items-center"><div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3"></div><span className="text-gray-400">综合风险评估</span></div>
               </div>
             </div>
           )}
@@ -407,12 +339,10 @@ export default function AuditPage() {
             <div>
               <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+                  <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">资质预审通过</h2>
-                <p className="text-gray-600">您的企业已通过智能资质审核</p>
+                <p className="text-gray-600">基于三件套材料的AI综合分析</p>
               </div>
 
               {/* Score */}
@@ -425,13 +355,59 @@ export default function AuditPage() {
                   <div className="text-5xl font-bold text-green-600 mb-2">{auditResult.level}</div>
                   <div className="text-sm text-gray-600">信用等级</div>
                 </div>
-                <div className="text-center p-6 bg-accent-gold/10 rounded-xl">
-                  <div className="text-5xl font-bold text-gray-900 mb-2">¥{(auditResult.loanLimit / 10000).toFixed(0)}万</div>
+                <div className="text-center p-6 bg-yellow-50 rounded-xl">
+                  <div className="text-5xl font-bold text-yellow-600 mb-2">¥{(auditResult.loanLimit / 10000).toFixed(0)}万</div>
                   <div className="text-sm text-gray-600">可贷额度</div>
                 </div>
               </div>
 
-              {/* Credit Profile */}
+              {/* 三件套分析结果 */}
+              <div className="mb-8">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">📊 AI分析详情</h3>
+                
+                {/* 水母报告 */}
+                <div className="mb-4 p-4 border border-blue-200 rounded-lg bg-blue-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-blue-900">🔗 水母报告分析</h4>
+                    <span className="px-2 py-1 bg-blue-200 text-blue-800 text-sm rounded">评分: {auditResult.jimuReport.score}</span>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-2">{auditResult.jimuReport.analysis}</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><p className="text-gray-500">风险提示:</p><ul className="text-orange-600">{auditResult.jimuReport.risks.map((risk, i) => <li key={i}>• {risk}</li>)}</ul></div>
+                    <div><p className="text-gray-500">建议:</p><ul className="text-green-600">{auditResult.jimuReport.suggestions.map((s, i) => <li key={i}>• {s}</li>)}</ul></div>
+                  </div>
+                </div>
+
+                {/* 企业征信 */}
+                <div className="mb-4 p-4 border border-green-200 rounded-lg bg-green-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-green-900">🏢 企业征信分析</h4>
+                    <span className="px-2 py-1 bg-green-200 text-green-800 text-sm rounded">评分: {auditResult.enterpriseCredit.score}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-sm mb-2">
+                    <div><p className="text-gray-500">负债率</p><p className="font-medium">{auditResult.enterpriseCredit.debtRatio}%</p></div>
+                    <div><p className="text-gray-500">征信查询</p><p className="font-medium">{auditResult.enterpriseCredit.creditInquiries}次</p></div>
+                    <div><p className="text-gray-500">逾期记录</p><p className="font-medium text-green-600">{auditResult.enterpriseCredit.overdueRecords}次</p></div>
+                  </div>
+                  <p className="text-sm text-gray-700">{auditResult.enterpriseCredit.analysis}</p>
+                </div>
+
+                {/* 个人征信 */}
+                <div className="mb-4 p-4 border border-purple-200 rounded-lg bg-purple-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-purple-900">👤 个人征信分析</h4>
+                    <span className="px-2 py-1 bg-purple-200 text-purple-800 text-sm rounded">评分: {auditResult.personalCredit.score}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-sm mb-2">
+                    <div><p className="text-gray-500">信用年限</p><p className="font-medium">{auditResult.personalCredit.creditAge}月</p></div>
+                    <div><p className="text-gray-500">信贷总额</p><p className="font-medium">¥{(auditResult.personalCredit.creditLimit / 10000).toFixed(0)}万</p></div>
+                    <div><p className="text-gray-500">逾期记录</p><p className="font-medium text-green-600">{auditResult.personalCredit.overdueRecords}次</p></div>
+                  </div>
+                  <p className="text-sm text-gray-700">{auditResult.personalCredit.analysis}</p>
+                </div>
+              </div>
+
+              {/* 企业信用画像 */}
               <div className="mb-8">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">企业信用画像</h3>
                 <div className="space-y-4">
@@ -446,62 +422,18 @@ export default function AuditPage() {
                         </span>
                         <span className="text-sm font-medium text-gray-900">{value}分</span>
                       </div>
-                      <div className="progress-bar">
-                        <div 
-                          className="progress-fill" 
-                          style={{width: `${value}%`}}
-                        />
-                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-primary-600 h-2 rounded-full" style={{width: `${value}%`}}></div></div>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* Risk Level */}
-              <div className="p-4 bg-green-50 rounded-lg mb-8">
-                <div className="flex items-center">
-                  <svg className="w-6 h-6 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  <span className="font-medium text-green-700">风险评级：{auditResult.riskLevel}</span>
-                </div>
-                <p className="text-sm text-green-600 mt-2">
-                  您的企业信用状况良好，符合银行优质客户标准。建议可申请最高 500 万元的信用贷款。
-                </p>
-              </div>
             </div>
           )}
 
-          {/* Navigation Buttons */}
+          {/* Navigation */}
           <div className="flex justify-between mt-8 pt-6 border-t border-gray-100">
-            <button
-              onClick={handlePrev}
-              disabled={currentStep === 1 || loading}
-              className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              上一步
-            </button>
-            
-            {currentStep < 3 ? (
-              <button
-                onClick={handleNext}
-                className="btn-primary"
-              >
-                下一步
-              </button>
-            ) : currentStep === 3 ? (
-              <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? '审核中...' : '开始审核'}
-              </button>
-            ) : (
-              <Link href="/matching" className="btn-accent inline-block text-center">
-                前往资产匹配
-              </Link>
-            )}
+            <button onClick={handlePrev} disabled={currentStep === 1 || loading} className="btn-secondary disabled:opacity-50">上一步</button>
+            {currentStep < 3 ? <button onClick={handleNext} className="btn-primary">下一步</button> : currentStep === 3 ? <button onClick={handleSubmit} disabled={loading} className="btn-primary disabled:opacity-50">{loading ? '审核中...' : '开始审核'}</button> : <Link href="/matching" className="btn-accent">前往资产匹配</Link>}
           </div>
         </div>
       </div>

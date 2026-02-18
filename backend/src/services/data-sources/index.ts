@@ -80,20 +80,33 @@ export class DataService {
   /**
    * 搜索法拍资产
    */
-  async searchProperties(keyword: string, options?: {
+  async searchProperties(keyword: string, searchParams?: {
     province?: string;
     city?: string;
     type?: string;
     minPrice?: number;
     maxPrice?: number;
+    district?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<ApiResponse<AuctionProperty[]>> {
     const results: AuctionProperty[] = [];
 
+    const params: any = searchParams || {};
+    const options: any = {
+      province: params.province,
+      city: params.city,
+      district: params.district,
+      type: params.type,
+      page: params.page || 1,
+      pageSize: params.pageSize || 20,
+    };
+
     const promises = [
-      aliAuctionService.search(keyword, options).then(r => {
+      aliAuctionService.getProperties(options).then((r: any) => {
         if (r.success && r.data) results.push(...r.data);
       }),
-      jdAuctionService.search(keyword, options).then(r => {
+      jdAuctionService.getProperties(options).then((r: any) => {
         if (r.success && r.data) results.push(...r.data);
       }),
     ];
@@ -192,7 +205,7 @@ export class DataService {
       }
 
       // 类型匹配
-      if (demand.preferredTypes?.includes(property.type)) {
+      if (demand.preferredTypes?.includes(property.type as any)) {
         score += 20;
         reasons.push('类型匹配');
       }

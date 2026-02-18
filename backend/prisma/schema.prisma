@@ -22,6 +22,11 @@ model User {
   companies     Company[]
   auditResults  AuditResult[]
   reports       Report[]
+  
+  // 员工分配的客户
+  assignedByStaff StaffCustomer[] @relation("CustomerRelation")
+  // 员工的跟进记录
+  staffFollowUps StaffFollowUp[]  @relation("CustomerFollowUp")
 }
 
 model Company {
@@ -104,4 +109,54 @@ model WorkOrder {
   description String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Staff {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  position      String
+  department    String?
+  avatar        String?
+  status        String   @default("active")
+  joinedAt      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // 员工跟进的所有客户
+  customers     StaffCustomer[]
+  // 员工的跟进记录
+  followUps     StaffFollowUp[]
+}
+
+model StaffCustomer {
+  id          String   @id @default(uuid())
+  staffId     String
+  customerId  String
+  assignedAt  DateTime @default(now())
+  status      String   @default("active")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staff       Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  customer    User     @relation("CustomerRelation", fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, customerId])
+}
+
+model StaffFollowUp {
+  id          String   @id @default(uuid())
+  staffId     String
+  customerId  String
+  type        String   @default("note")
+  content     String
+  nextAction  String?
+  nextDate    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staff       Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  customer    User     @relation("CustomerFollowUp", fields: [customerId], references: [id], onDelete: Cascade)
 }
